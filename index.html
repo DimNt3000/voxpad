@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Voxpad: text to speech in your browser</title>
+<meta name="description" content="Paste or drop text, pick a voice, and listen. Voxpad reads text aloud using the speech engine already built into your browser. No account, no upload, works offline.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131311" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Voxpad: text to speech in your browser">
+<meta property="og:description" content="Paste or drop text, pick a voice, and listen. Runs entirely on your device.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/favicon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="css/styles.css">
+<script>
+  /* Applies the saved theme before first paint so the page never flashes. */
+  (function () {
+    try {
+      var raw = localStorage.getItem('voxpad:prefs');
+      var theme = raw ? JSON.parse(raw).theme : null;
+      if (theme !== 'light' && theme !== 'dark') {
+        theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = theme;
+    } catch (e) { /* storage blocked, keep the default */ }
+  })();
+</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5 19.5 12 7 19.5Z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="7" y="4.5" width="3.6" height="15" rx="1.2"/><rect x="13.4" y="4.5" width="3.6" height="15" rx="1.2"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="2.2"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M18.5 5.5v13L8 12Z"/><path d="M5.5 5.5v13"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M5.5 5.5v13L16 12Z"/><path d="M18.5 5.5v13"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.4A8.5 8.5 0 0 1 9.6 4 8.5 8.5 0 1 0 20 14.4Z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3.5v4.8h4.8"/><path d="M14.2 3.5H7.4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9.2a2 2 0 0 0 2-2V8.1Z"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 6.5h14M5 12h14M5 17.5h9"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V5.4a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V7"/><path d="M6.6 7v12a2 2 0 0 0 2 2h6.8a2 2 0 0 0 2-2V7"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 12h1.6M7.2 7.4v9.2M11.4 4.5v15M15.6 8.6v6.8M19.8 10.6v2.8"/></symbol>
+</svg>
+
+<p id="protocolNotice" class="banner" hidden></p>
+
+<header class="app-bar">
+  <div class="brand">
+    <span class="brand__mark" aria-hidden="true"><svg class="icon"><use href="#i-wave"/></svg></span>
+    <span class="brand__text">
+      <h1 class="brand__name">Voxpad</h1>
+      <span class="brand__tag" data-i18n="tagline">Text to speech that runs on your device.</span>
+    </span>
+  </div>
+
+  <div class="app-bar__actions">
+    <div class="seg" role="group" data-i18n-label="ui.language" aria-label="Interface language">
+      <button type="button" class="seg__btn" data-set-lang="en" aria-pressed="true">EN</button>
+      <button type="button" class="seg__btn" data-set-lang="el" aria-pressed="false">EL</button>
+    </div>
+    <button type="button" id="themeBtn" class="icon-btn" aria-pressed="false"
+            data-i18n-label="ui.theme" aria-label="Switch to dark theme">
+      <svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="main" class="layout">
+
+  <section class="panel panel--doc" aria-labelledby="docHeading">
+    <h2 id="docHeading" class="sr-only" data-i18n="doc.heading">Your text</h2>
+
+    <div class="tabs" role="tablist" data-i18n-label="doc.tabs" aria-label="Text view">
+      <button type="button" class="tab is-on" id="tabEdit" role="tab"
+              aria-selected="true" aria-controls="paneEdit" data-i18n="tab.edit">Edit</button>
+      <button type="button" class="tab" id="tabRead" role="tab"
+              aria-selected="false" aria-controls="paneRead" tabindex="-1" data-i18n="tab.read">Read</button>
+    </div>
+
+    <div class="pane" id="paneEdit" role="tabpanel" aria-labelledby="tabEdit" tabindex="0">
+      <label class="sr-only" for="text" data-i18n="doc.label">Text to read aloud</label>
+      <textarea id="text" class="editor" spellcheck="false" autocapitalize="sentences"
+                data-i18n-placeholder="doc.placeholder"
+                placeholder="Paste your text here, or drop a .txt file anywhere on the page."></textarea>
+
+      <div class="toolbar">
+        <button type="button" class="btn" id="importBtn">
+          <svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>
+          <span data-i18n="tool.import">Import file</span>
+        </button>
+        <input type="file" id="fileInput" accept=".txt,.md,text/plain,text/markdown" hidden>
+        <button type="button" class="btn" id="sampleBtn">
+          <svg class="icon" aria-hidden="true"><use href="#i-text"/></svg>
+          <span data-i18n="tool.sample">Sample</span>
+        </button>
+        <button type="button" class="btn btn--quiet" id="clearBtn">
+          <svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>
+          <span id="clearLabel" data-i18n="tool.clear">Clear</span>
+        </button>
+      </div>
+
+      <p class="meta" id="docMeta" role="status">0 words, 0 characters</p>
+    </div>
+
+    <div class="pane" id="paneRead" role="tabpanel" aria-labelledby="tabRead" tabindex="0" hidden>
+      <div class="reader" id="reader" data-i18n-label="reader.label" aria-label="Text being read">
+        <p class="reader__empty" data-i18n="reader.empty">Nothing to read yet. Add some text in the Edit tab.</p>
+      </div>
+      <p class="meta" data-i18n="reader.hint">Click any sentence to start reading from there.</p>
+    </div>
+  </section>
+
+  <aside class="panel panel--controls" aria-labelledby="voiceHeading">
+    <h2 id="voiceHeading" data-i18n="voice.heading">Voice</h2>
+
+    <div class="field">
+      <label for="langFilter" data-i18n="voice.language">Language</label>
+      <select id="langFilter">
+        <option value="all" data-i18n="voice.allLanguages">All languages</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="voiceSelect" data-i18n="voice.voice">Voice</label>
+      <select id="voiceSelect"></select>
+      <p class="field__note" id="voiceNote"></p>
+    </div>
+
+    <p class="hint" id="langHint" hidden>
+      <span id="langHintText"></span>
+      <button type="button" class="btn btn--small" id="langHintApply" data-i18n="voice.useMatch">Use it</button>
+    </p>
+
+    <h2 data-i18n="delivery.heading">Delivery</h2>
+
+    <div class="field field--slider">
+      <label for="rate"><span data-i18n="delivery.rate">Speed</span> <output id="rateOut">1.00x</output></label>
+      <input type="range" id="rate" min="0.5" max="2" step="0.05" value="1">
+    </div>
+
+    <div class="field field--slider">
+      <label for="pitch"><span data-i18n="delivery.pitch">Pitch</span> <output id="pitchOut">1.00</output></label>
+      <input type="range" id="pitch" min="0" max="2" step="0.05" value="1">
+    </div>
+
+    <div class="field field--slider">
+      <label for="volume"><span data-i18n="delivery.volume">Volume</span> <output id="volumeOut">100%</output></label>
+      <input type="range" id="volume" min="0" max="1" step="0.05" value="1">
+    </div>
+
+    <div class="presets" role="group" data-i18n-label="preset.group" aria-label="Speed presets">
+      <button type="button" class="btn btn--small" data-rate="0.8" data-i18n="preset.slow">Slow</button>
+      <button type="button" class="btn btn--small" data-rate="1" data-i18n="preset.normal">Normal</button>
+      <button type="button" class="btn btn--small" data-rate="1.35" data-i18n="preset.brisk">Brisk</button>
+      <button type="button" class="btn btn--small" id="resetBtn" data-i18n="delivery.reset">Reset all</button>
+    </div>
+  </aside>
+</main>
+
+<div class="transport" id="transport">
+  <div class="transport__inner">
+    <div class="transport__buttons">
+      <button type="button" class="icon-btn" id="prevBtn" data-i18n-label="transport.prev" aria-label="Previous sentence" disabled>
+        <svg class="icon" aria-hidden="true"><use href="#i-prev"/></svg>
+      </button>
+      <button type="button" class="icon-btn icon-btn--primary" id="playBtn" data-i18n-label="transport.play" aria-label="Play">
+        <svg class="icon" aria-hidden="true" id="playIcon"><use href="#i-play"/></svg>
+      </button>
+      <button type="button" class="icon-btn" id="stopBtn" data-i18n-label="transport.stop" aria-label="Stop" disabled>
+        <svg class="icon" aria-hidden="true"><use href="#i-stop"/></svg>
+      </button>
+      <button type="button" class="icon-btn" id="nextBtn" data-i18n-label="transport.next" aria-label="Next sentence" disabled>
+        <svg class="icon" aria-hidden="true"><use href="#i-next"/></svg>
+      </button>
+    </div>
+
+    <div class="transport__seek">
+      <label class="sr-only" for="seek" data-i18n="transport.seek">Reading position</label>
+      <input type="range" id="seek" min="0" max="1000" step="1" value="0" disabled>
+      <p class="transport__status" id="status" role="status" data-i18n="status.idle">Ready</p>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <p class="site-footer__note" data-i18n="footer.note">
+    Your text stays on this device. Voxpad sends nothing to a server.
+  </p>
+  <nav class="site-footer__links" data-i18n-label="footer.nav" aria-label="Footer">
+    <a href="privacy.html" data-i18n="footer.privacy">Privacy and data</a>
+    <button type="button" class="linklike" id="shortcutsBtn">
+      <svg class="icon" aria-hidden="true"><use href="#i-keyboard"/></svg>
+      <span data-i18n="footer.shortcuts">Keyboard shortcuts</span>
+    </button>
+  </nav>
+</footer>
+
+<dialog id="shortcutsDialog" class="dialog">
+  <form method="dialog" class="dialog__head">
+    <h2 data-i18n="shortcuts.title">Keyboard shortcuts</h2>
+    <button class="icon-btn" value="close" data-i18n-label="ui.close" aria-label="Close">
+      <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>
+    </button>
+  </form>
+  <dl class="shortcuts">
+    <dt><kbd>Space</kbd></dt><dd data-i18n="shortcuts.space">Play or pause (when the text box is not focused)</dd>
+    <dt><kbd>Esc</kbd></dt><dd data-i18n="shortcuts.esc">Stop</dd>
+    <dt><kbd>&larr;</kbd> <kbd>&rarr;</kbd></dt><dd data-i18n="shortcuts.arrows">Previous or next sentence</dd>
+    <dt><kbd>Ctrl</kbd> + <kbd>Enter</kbd></dt><dd data-i18n="shortcuts.ctrlEnter">Read from the beginning</dd>
+    <dt><kbd>?</kbd></dt><dd data-i18n="shortcuts.question">Open this list</dd>
+  </dl>
+</dialog>
+
+<div class="drop-overlay" id="dropOverlay" hidden>
+  <p data-i18n="drop.hint">Drop a text file to load it</p>
+</div>
+
+<script>
+  if (location.protocol === 'file:') {
+    var n = document.getElementById('protocolNotice');
+    n.hidden = false;
+    n.textContent = 'This page was opened directly from disk, so the browser blocks its script modules. Serve the folder over http (for example: python -m http.server 8000) and open http://localhost:8000 instead.';
+  }
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Voxpad">
+  <rect width="512" height="512" fill="#a8431d"/>
+  <g stroke="#fff" stroke-width="30" stroke-linecap="round">
+    <path d="M158 256h1"/>
+    <path d="M215 200v112"/>
+    <path d="M272 144v224"/>
+    <path d="M329 208v96"/>
+    <path d="M383 238v36"/>
+  </g>
+</svg>

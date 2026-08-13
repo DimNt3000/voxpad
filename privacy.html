@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacy and data: Voxpad</title>
+<meta name="description" content="What Voxpad stores, where it stores it, and the one case where text leaves your device.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/styles.css">
+<script>
+  (function () {
+    try {
+      var raw = localStorage.getItem('voxpad:prefs');
+      var theme = raw ? JSON.parse(raw).theme : null;
+      if (theme !== 'light' && theme !== 'dark') {
+        theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = theme;
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body class="page">
+
+<header class="app-bar">
+  <div class="brand">
+    <span class="brand__mark" aria-hidden="true">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <path d="M3 12h1.6M7.2 7.4v9.2M11.4 4.5v15M15.6 8.6v6.8M19.8 10.6v2.8"/>
+      </svg>
+    </span>
+    <span class="brand__text">
+      <span class="brand__name">Voxpad</span>
+      <span class="brand__tag">Privacy and data</span>
+    </span>
+  </div>
+</header>
+
+<main class="prose">
+  <a class="back" href="index.html">Back to the app</a>
+  <h1>Privacy and data</h1>
+
+  <p>
+    Voxpad is a static page. There is no account, no backend, no analytics, no advertising and no
+    cookies. Nothing you type is transmitted to the person who published this page.
+  </p>
+
+  <h2>What is stored on your device</h2>
+  <p>
+    Two entries are written to your browser's local storage, readable only by this site:
+  </p>
+  <ul>
+    <li>
+      <strong>voxpad:prefs</strong>: theme, interface language, speed, pitch, volume, the selected
+      voice and the language filter.
+    </li>
+    <li>
+      <strong>voxpad:draft</strong>: the text currently in the editor, up to 200,000 characters, so
+      that reloading the page does not lose your work. Emptying the editor with the Clear button
+      deletes it. Clearing site data in your browser settings deletes both entries.
+    </li>
+  </ul>
+  <p>
+    Neither entry is a cookie, so neither is ever attached to a network request. Under the EU
+    ePrivacy rules both are strictly necessary for the feature you asked for, which is why this
+    page ships no consent banner: there is nothing optional to consent to.
+  </p>
+
+  <h2>The one case where text leaves your device</h2>
+  <p>
+    Speech is produced by your browser, not by this page. Most installed voices run on your own
+    machine. Some browsers also offer higher quality voices that are rendered on the browser
+    vendor's servers, and choosing one of those means the sentence being spoken is sent to that
+    vendor for processing. This happens inside the browser and is governed by the browser vendor's
+    own privacy policy.
+  </p>
+  <p>
+    Voxpad labels every voice: <em>Runs on this device</em> or <em>Rendered by the browser vendor
+    over the network</em>. Pick a device voice if the text is sensitive, or work offline, where only
+    device voices are available.
+  </p>
+
+  <h2>Files you open</h2>
+  <p>
+    Imported and dropped files are read in the page with the browser's File API. They are never
+    uploaded. Only the text content ends up in the editor, and from there in the draft entry above.
+  </p>
+
+  <h2>Hosting</h2>
+  <p>
+    Serving this page produces a standard web server access log at the host, which normally includes
+    your IP address, the time and the requested file. That log is controlled by whoever hosts this
+    copy, not by the page itself.
+  </p>
+
+  <h2>Your rights and contact</h2>
+  <p>
+    This copy is published by Dimitrios-Georgios Ntoulias.
+    [PLACEHOLDER: add a contact email and the hosting provider here before making the page public,
+    and have it reviewed if it is ever used commercially. This text describes the software's
+    behaviour, it is not legal advice.]
+  </p>
+  <p>
+    Because no personal data is collected or stored by the publisher, there is no user record to
+    access, correct, export or erase. Requests about a hosting provider's server logs go to the
+    publisher named above. You can also complain to your national data protection authority.
+  </p>
+
+  <h2>Changes</h2>
+  <p>Last reviewed: 12 August 2026. Any change to what is stored will be listed on this page.</p>
+</main>
+
+<footer class="site-footer">
+  <p class="site-footer__note">Voxpad, a static text to speech tool.</p>
+  <nav class="site-footer__links" aria-label="Footer">
+    <a href="index.html">Back to the app</a>
+  </nav>
+</footer>
+
+</body>
+</html>
