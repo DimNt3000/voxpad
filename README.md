@@ -4,9 +4,11 @@ A text to speech reader that runs entirely in the browser. Paste text or drop a 
 voice, and listen while the sentence being spoken is highlighted. No build step, no dependencies,
 no backend.
 
-Built with plain HTML, CSS and JavaScript (ES modules) on top of the Web Speech API.
+Built with plain HTML, CSS and JavaScript (ES modules) on top of the Web Speech API. A React
+Native companion, [Voxpad Mobile](https://github.com/DimNt3000/voxpad-mobile), ports the same
+architecture to Android and iOS.
 
-**Live demo:** _add the GitHub Pages URL here after the first deploy._
+**Live demo:** https://dimnt3000.github.io/voxpad/
 
 ![Voxpad on the desktop, mid sentence: the sentence being read is shaded and the word being
 spoken is highlighted, with the voice and delivery controls on the right and the transport bar
