@@ -24,6 +24,7 @@ export const DEFAULTS = {
 };
 
 let saveTimer = null;
+let pendingDraft = null;
 
 function readRaw(key) {
   try {
@@ -63,14 +64,28 @@ export const loadDraft = () => readRaw(TEXT_KEY) || '';
 /** Debounced so typing does not hit storage on every keystroke. */
 export function saveDraft(text) {
   clearTimeout(saveTimer);
+  pendingDraft = text;
   saveTimer = setTimeout(() => {
+    pendingDraft = null;
     if (!text) clearDraft();
     else writeRaw(TEXT_KEY, text.slice(0, MAX_DRAFT));
   }, SAVE_DELAY);
 }
 
+/** Writes any pending debounced draft immediately. Called on pagehide, so
+ *  closing the tab within the debounce window cannot lose the last edit. */
+export function flushDraft() {
+  if (pendingDraft === null) return;
+  clearTimeout(saveTimer);
+  const text = pendingDraft;
+  pendingDraft = null;
+  if (!text) clearDraft();
+  else writeRaw(TEXT_KEY, text.slice(0, MAX_DRAFT));
+}
+
 export function clearDraft() {
   clearTimeout(saveTimer);
+  pendingDraft = null;
   try {
     localStorage.removeItem(TEXT_KEY);
   } catch (error) {

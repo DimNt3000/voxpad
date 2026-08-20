@@ -8,7 +8,7 @@ import { TtsEngine } from './tts-engine.js';
 import { ReaderView } from './reader-view.js';
 import { loadVoices, onVoicesChanged, sortVoices, groupByLanguage, primaryTag, pickForLanguage } from './voices.js';
 import { countWords, estimateSeconds, formatDuration, detectScript } from './text-segmenter.js';
-import { loadPrefs, savePrefs, loadDraft, saveDraft, clearDraft, DEFAULTS } from './storage.js';
+import { loadPrefs, savePrefs, loadDraft, saveDraft, flushDraft, clearDraft, DEFAULTS } from './storage.js';
 import { applyTranslations, detectLanguage, setLanguage, getLanguage, t, sampleText, scriptName, LANGUAGES } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
@@ -61,6 +61,7 @@ const supported = TtsEngine.supported;
 const engine = new TtsEngine();
 
 let allVoices = [];
+let voicesResolved = false;
 let currentVoice = null;
 let suggestedTag = null;
 let readerDirty = true;
@@ -109,6 +110,13 @@ function init() {
     setupVoices();
   }
 
+  // Reloading or closing within the draft debounce window must not lose the
+  // last keystrokes.
+  window.addEventListener('pagehide', flushDraft);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushDraft();
+  });
+
   registerServiceWorker();
 }
 
@@ -150,7 +158,9 @@ function bindEngine() {
 /** Reloads the engine from the textarea. Debounced while typing. */
 function refreshText({ immediate = false } = {}) {
   clearTimeout(typingTimer);
+  typingTimer = null;
   const run = () => {
+    typingTimer = null;
     engine.load(el.text.value);
     readerDirty = true;
     if (!el.paneRead.hidden) ensureReader();
@@ -161,6 +171,14 @@ function refreshText({ immediate = false } = {}) {
   };
   if (immediate) run();
   else typingTimer = setTimeout(run, TYPING_DELAY);
+}
+
+/** Runs a pending debounced reload now, so playback started right after typing
+ *  speaks the text on screen rather than the one from before the keystroke.
+ *  Only when idle: flushing mid-playback would reload the engine and turn a
+ *  pause into a restart. */
+function flushText() {
+  if (typingTimer !== null && engine.state === 'idle') refreshText({ immediate: true });
 }
 
 function ensureReader() {
@@ -185,6 +203,7 @@ function updateMeta() {
 function setText(value) {
   el.text.value = value;
   saveDraft(value);
+  resetClearButton();
   refreshText({ immediate: true });
 }
 
@@ -198,6 +217,7 @@ async function setupVoices() {
 }
 
 function applyVoiceList(voices) {
+  voicesResolved = true;
   const preferred = [suggestedTag, getLanguage(), primaryTag(navigator.language)].filter(Boolean);
   allVoices = sortVoices(voices, [...new Set(preferred)]);
 
@@ -256,6 +276,9 @@ function selectVoice(voice, { persist = true } = {}) {
   if (!voice) return;
   const index = allVoices.indexOf(voice);
   if (index === -1) return;
+  // A late voiceschanged event re-resolving to the same voice must not restart
+  // the sentence being spoken: applySettings on a speaking engine replays it.
+  const sameVoice = currentVoice && currentVoice.voiceURI === voice.voiceURI;
 
   // The voice may sit outside the active language filter, so widen it.
   if (el.langFilter.value !== 'all' && primaryTag(voice.lang) !== el.langFilter.value) {
@@ -266,7 +289,7 @@ function selectVoice(voice, { persist = true } = {}) {
 
   currentVoice = voice;
   el.voiceSelect.value = String(index);
-  engine.applySettings({ voice });
+  if (!sameVoice) engine.applySettings({ voice });
   el.voiceNote.textContent = voice.localService ? t('voice.local') : t('voice.network');
 
   if (persist) {
@@ -301,6 +324,12 @@ function updateLanguageHint() {
 
 function showTab(name) {
   const readMode = name === 'read';
+  // Hiding the pane that holds focus would silently drop focus to <body>;
+  // keyboard users would lose their place. Move it to the active tab first.
+  const paneToHide = readMode ? el.paneEdit : el.paneRead;
+  if (paneToHide.contains(document.activeElement)) {
+    (readMode ? el.tabRead : el.tabEdit).focus();
+  }
   el.tabRead.classList.toggle('is-on', readMode);
   el.tabEdit.classList.toggle('is-on', !readMode);
   el.tabRead.setAttribute('aria-selected', String(readMode));
@@ -323,6 +352,18 @@ function bindDocument() {
 
   el.tabEdit.addEventListener('click', () => showTab('edit'));
   el.tabRead.addEventListener('click', () => showTab('read'));
+
+  // Roving tabindex needs arrow keys, or the inactive tab is unreachable
+  // by keyboard.
+  [el.tabEdit, el.tabRead].forEach((tab) => {
+    tab.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const other = tab === el.tabEdit ? el.tabRead : el.tabEdit;
+      showTab(other === el.tabRead ? 'read' : 'edit');
+      other.focus();
+    });
+  });
 
   el.sampleBtn.addEventListener('click', () => {
     setText(sampleText());
@@ -424,6 +465,14 @@ function bindControls() {
     if (typeof el.shortcutsDialog.showModal === 'function') el.shortcutsDialog.showModal();
     else el.shortcutsDialog.setAttribute('open', '');
   });
+
+  // Browsers without <dialog>: method="dialog" is unknown there, so the close
+  // button would submit the form and reload the page.
+  el.shortcutsDialog.querySelector('form').addEventListener('submit', (event) => {
+    if (typeof el.shortcutsDialog.close === 'function') return;
+    event.preventDefault();
+    el.shortcutsDialog.removeAttribute('open');
+  });
 }
 
 /** Live display on input, engine restart only once the value settles. */
@@ -442,6 +491,7 @@ function bindSlider(input, key, onUpdate) {
 
 function bindTransport() {
   el.playBtn.addEventListener('click', () => {
+    flushText();
     if (!engine.sentenceCount) {
       el.text.focus();
       return;
@@ -460,6 +510,13 @@ function bindTransport() {
     if (engine.state === 'idle') showTab('read');
     engine.seekToRatio(Number(el.seek.value) / 1000);
   });
+  // A drag released on its starting value fires input but never change, which
+  // would leave `seeking` latched and the bar frozen. The timeout lets a real
+  // change event run first.
+  const endSeek = () => setTimeout(() => { seeking = false; }, 0);
+  el.seek.addEventListener('pointerup', endSeek);
+  el.seek.addEventListener('pointercancel', endSeek);
+  el.seek.addEventListener('blur', endSeek);
 }
 
 function bindKeyboard() {
@@ -473,12 +530,16 @@ function bindKeyboard() {
 
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
       event.preventDefault();
+      flushText();
       if (engine.sentenceCount) { showTab('read'); engine.play(0); }
       return;
     }
     if (event.ctrlKey || event.metaKey || event.altKey) return;
 
     if (event.key === 'Escape') {
+      // Esc while the shortcuts dialog is open just closes the dialog; it
+      // must not also stop playback.
+      if (el.shortcutsDialog.open) return;
       if (engine.isBusy) engine.stop();
       return;
     }
@@ -486,6 +547,7 @@ function bindKeyboard() {
 
     if (event.key === ' ') {
       event.preventDefault();
+      flushText();
       if (engine.sentenceCount) {
         if (engine.state === 'idle') showTab('read');
         engine.toggle();
@@ -601,12 +663,21 @@ function applyLanguageUi() {
   reader.setEmptyMessage(t('reader.empty'));
   readerDirty = true;
   if (!el.paneRead.hidden) ensureReader();
+  // Strings normally written once at startup have to be re-rendered too, or
+  // they stay in the previous language.
   if (currentVoice) el.voiceNote.textContent = currentVoice.localService ? t('voice.local') : t('voice.network');
+  // Only after discovery has actually finished, or startup would flash a
+  // "no voices" note while the list is still loading.
+  else if (supported && voicesResolved && !allVoices.length) el.voiceNote.textContent = t('voice.none');
+  if (!supported) showBanner(t('error.unsupported'));
   resetClearButton();
   updatePlayButton();
   updateStatus();
   updateMeta();
   updateLanguageHint();
+  // applyTranslations overwrote the theme button's stateful label with the
+  // generic one; restore it.
+  applyTheme(prefs.theme);
 }
 
 function applyTheme(theme) {

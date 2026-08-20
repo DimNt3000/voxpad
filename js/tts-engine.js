@@ -19,8 +19,11 @@
 
 import { segment, wordAt } from './text-segmenter.js';
 
-const CHROMIUM = /Chrome|Chromium|CriOS|Edg/i.test(navigator.userAgent) &&
-                 !/Firefox|FxiOS/i.test(navigator.userAgent);
+/* The ~15 second stall the keep-alive works around is a desktop Chromium bug.
+ * On Android and iOS the same pause()/resume() nudge would kill the utterance
+ * (pause acts as cancel there), so mobile UAs are excluded on purpose. */
+const CHROMIUM = /Chrome|Chromium|Edg/i.test(navigator.userAgent) &&
+                 !/Android|Mobile|CriOS|Firefox|FxiOS/i.test(navigator.userAgent);
 
 const KEEPALIVE_MS = 9000;
 const START_DELAY_MS = 60;
@@ -43,6 +46,7 @@ export class TtsEngine extends EventTarget {
     this._totalChars = 0;
     this._keepAlive = null;
     this._spokenInChunk = 0;
+    this._settingsDirty = false;
   }
 
   static get supported() {
@@ -77,10 +81,12 @@ export class TtsEngine extends EventTarget {
     return this.chunks;
   }
 
-  /** Merges settings. Restarts the current sentence when already speaking. */
+  /** Merges settings. Restarts the current sentence when already speaking;
+   *  when paused, the new settings are applied on resume. */
   applySettings(partial) {
     Object.assign(this.settings, partial);
     if (this.state === 'speaking') this.play(this.index);
+    else if (this.state === 'paused') this._settingsDirty = true;
   }
 
   play(index = this.index) {
@@ -88,6 +94,9 @@ export class TtsEngine extends EventTarget {
 
     this.index = clamp(index, 0, this.chunks.length - 1);
     this._spokenInChunk = 0;
+    // Starting fresh applies the current settings, so nothing is left pending
+    // for a later resume() to replay the sentence over.
+    this._settingsDirty = false;
     this._token++;
     this.synth.cancel();
     this._setState('speaking');
@@ -106,11 +115,24 @@ export class TtsEngine extends EventTarget {
     if (this.state !== 'speaking') return;
     this._setState('paused');
     this._stopKeepAlive();
-    this.synth.pause();
+    // Pausing while nothing is audibly speaking yet (e.g. inside the short
+    // start delay after play()) wedges Chromium's queue in a state only
+    // cancel() clears. The paused *engine* state alone is enough there:
+    // resume() restarts the current sentence when nothing is speaking.
+    if (this.synth.speaking) this.synth.pause();
   }
 
   resume() {
     if (this.state !== 'paused') return;
+
+    // Settings changed during the pause: utterances are immutable, so the only
+    // way to honor them is to restart the current sentence.
+    if (this._settingsDirty) {
+      this._settingsDirty = false;
+      this.play(this.index);
+      return;
+    }
+
     this._setState('speaking');
     this._startKeepAlive();
     this.synth.resume();
@@ -132,6 +154,7 @@ export class TtsEngine extends EventTarget {
   stop() {
     this._token++;
     this._stopKeepAlive();
+    this._settingsDirty = false;
     this.synth.cancel();
     this.index = 0;
     this._spokenInChunk = 0;
@@ -144,6 +167,8 @@ export class TtsEngine extends EventTarget {
   step(delta) {
     if (!this.chunks.length) return;
     const target = clamp(this.index + delta, 0, this.chunks.length - 1);
+    // Already at the boundary: stepping is a no-op, not a restart.
+    if (target === this.index && this.state !== 'idle') return;
     if (this.state === 'idle') {
       this.index = target;
       this._spokenInChunk = 0;
@@ -196,6 +221,12 @@ export class TtsEngine extends EventTarget {
     utterance.onstart = () => {
       if (token !== this._token) return;
       this._emit('sentence', { index: chunkIndex });
+      // Sentence-granularity progress, so the seek bar moves even on engines
+      // that never fire word boundary events.
+      this._emitProgress(0);
+      // A pause requested before the audio began (pause() skips synth.pause()
+      // when nothing speaks yet) is honored the moment it actually starts.
+      if (this.state === 'paused' && this.synth.speaking) this.synth.pause();
     };
 
     utterance.onboundary = (event) => {
@@ -216,6 +247,11 @@ export class TtsEngine extends EventTarget {
 
     utterance.onend = () => {
       if (token !== this._token) return;
+      // On platforms where pause() kills the utterance (Android), its onend
+      // arrives while we are paused. Advancing here would skip speech, or turn
+      // a pause on the last sentence into a bogus "done". resume() replays the
+      // current sentence instead.
+      if (this.state === 'paused') return;
       this._spokenInChunk = 0;
       if (this.index + 1 >= this.chunks.length) {
         this._finish();
@@ -229,10 +265,14 @@ export class TtsEngine extends EventTarget {
       if (token !== this._token) return;
       // Firing after our own cancel() is expected, not a failure.
       if (event.error === 'interrupted' || event.error === 'canceled') return;
-      this._emit('ttserror', { error: event.error || 'unknown' });
+      // ttserror last, so status handlers reacting to the finish events do not
+      // overwrite the error message with a success message.
       this._finish();
+      this._emit('ttserror', { error: event.error || 'unknown' });
     };
 
+    // Chromium refuses to start a new utterance while its queue is paused.
+    if (this.synth.paused) this.synth.resume();
     this.synth.speak(utterance);
   }
 

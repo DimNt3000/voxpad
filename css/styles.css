@@ -454,6 +454,10 @@ input[type="range"] {
 }
 .dialog::backdrop { background: rgba(20, 19, 17, .5); }
 
+/* Browsers without <dialog> support render it as a plain always-visible block;
+   this keeps it hidden until the fallback open attribute is set. */
+dialog:not([open]) { display: none; }
+
 .dialog__head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
 .dialog__head h2 { font-size: 1.05rem; }
 

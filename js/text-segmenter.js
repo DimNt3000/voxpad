@@ -15,8 +15,11 @@
 
 const DEFAULT_MAX = 180;
 
-/** Characters that can close a sentence. `;` and `·` are Greek punctuation. */
-const TERMINATORS = new Set(['.', '!', '?', '…', ';', ';', '·', '\n']);
+/** Characters that can close a sentence. The escapes are the Greek question
+ *  mark (U+037E) and ano teleia (U+0387), kept as escapes on purpose: an editor
+ *  normalizing them to lookalikes silently changes behavior, which is exactly
+ *  how the mobile port once lost U+037E. */
+const TERMINATORS = new Set(['.', '!', '?', '…', ';', '\u037e', '·', '\u0387', '\n']);
 const CLOSERS = new Set(['"', "'", '”', '’', ')', ']', '»']);
 
 /**
@@ -66,7 +69,15 @@ function scanSentences(text) {
     if (!TERMINATORS.has(text[i])) continue;
 
     let end = i + 1;
-    while (end < text.length && (TERMINATORS.has(text[end]) || CLOSERS.has(text[end]))) end++;
+    // A line break ends the run immediately: closers on the NEXT line belong
+    // to the next sentence, and a chunk must never span a hard line break
+    // (the reader's paragraph handling depends on that invariant).
+    if (text[i] !== '\n') {
+      while (end < text.length && (TERMINATORS.has(text[end]) || CLOSERS.has(text[end]))) {
+        if (text[end] === '\n') { end++; break; }
+        end++;
+      }
+    }
 
     const next = text[end];
     if (next === undefined || /\s/.test(next) || text[i] === '\n') {
