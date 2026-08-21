@@ -80,8 +80,8 @@ work from the chunk index, so they keep working on engines that never fire word 
 
 | Problem | Handling |
 | --- | --- |
-| Chromium stops speaking after about 15 seconds | A watchdog calls `pause()` then `resume()` every 9 seconds while speaking, on Chromium only |
-| Android treats `pause()` as `cancel()` | `resume()` checks whether anything is still speaking and restarts the current sentence if not |
+| Desktop Chromium stops speaking after about 15 seconds | A watchdog calls `pause()` then `resume()` every 9 seconds while speaking. Mobile is excluded: there the same nudge cancels the utterance |
+| Android treats `pause()` as `cancel()` | The `onend` this produces is ignored while paused, and `resume()` restarts the current sentence when nothing is speaking |
 | `cancel()` fires `onend`, which looks like normal completion | Every utterance carries a generation token, stale callbacks are ignored |
 | `getVoices()` is empty on first call, and `voiceschanged` never fires in some Safari builds | `js/voices.js` resolves on whichever of the event or a poll arrives first, with a timeout |
 | Utterance settings cannot change once created | Changing voice, speed or pitch mid playback restarts the current sentence with the new settings |
@@ -108,6 +108,7 @@ js/storage.js            preferences and draft text in localStorage
 js/i18n.js               English and Greek strings
 sw.js                    offline cache
 manifest.webmanifest     installable app metadata
+assets/                  favicon plus the PNG icon set used by install prompts
 ```
 
 ## Browser support
@@ -141,8 +142,6 @@ the interface. See [privacy.html](privacy.html).
 - Word level highlighting depends on the engine emitting boundary events. Some voices, mainly the
   network rendered ones, emit none, and the app falls back to sentence level highlighting.
 - iOS requires playback to start from a user gesture, so the first press must be a real tap.
-- The install prompt uses SVG icons. Add PNG icons at 192 and 512 pixels for the widest install
-  support.
 
 ## License
 

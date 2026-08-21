@@ -9,7 +9,7 @@
  * this worker.
  */
 
-const CACHE = 'voxpad-v2';
+const CACHE = 'voxpad-v3';
 
 const SHELL = [
   './',
@@ -25,7 +25,11 @@ const SHELL = [
   'js/storage.js',
   'js/i18n.js',
   'assets/favicon.svg',
-  'assets/icon-maskable.svg',
+  'assets/icon-192.png',
+  'assets/icon-512.png',
+  'assets/icon-maskable-192.png',
+  'assets/icon-maskable-512.png',
+  'assets/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {
