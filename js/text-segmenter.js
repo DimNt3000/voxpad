@@ -22,6 +22,10 @@ const DEFAULT_MAX = 180;
 const TERMINATORS = new Set(['.', '!', '?', '…', ';', '\u037e', '·', '\u0387', '\n']);
 const CLOSERS = new Set(['"', "'", '”', '’', ')', ']', '»']);
 
+/** Terminators that Unicode's sentence algorithm ignores, so the Intl path has
+ *  to handle them itself to stay in step with the scanner. */
+const FORCED_BREAK = new Set([';', '\u037e', '\u00b7', '\u0387']);
+
 /**
  * @param {string} text
  * @param {number} [maxLen] soft ceiling for a single utterance
@@ -46,13 +50,25 @@ function intlSentences(text) {
   const out = [];
   const segmenter = new Intl.Segmenter(undefined, { granularity: 'sentence' });
   for (const part of segmenter.segment(text)) {
-    // Intl keeps hard line breaks inside a segment. Break on them too, so that
-    // lists and verse do not turn into one long run-on utterance.
     let from = part.index;
     const body = part.segment;
     for (let i = 0; i < body.length; i++) {
-      if (body[i] !== '\n') continue;
-      addSpan(out, text, from, part.index + i);
+      const ch = body[i];
+      // Intl keeps hard line breaks inside a segment. Break on them too, so
+      // that lists and verse do not turn into one long run-on utterance.
+      if (ch === '\n') {
+        addSpan(out, text, from, part.index + i);
+        from = part.index + i + 1;
+        continue;
+      }
+      // Unicode's sentence algorithm does not break at the Greek question mark
+      // or ano teleia, but in Greek both end a sentence. Without this the two
+      // segmentation paths would disagree on Greek text. Only break when
+      // whitespace follows, so "a;b" inside code or a URL stays intact.
+      if (!FORCED_BREAK.has(ch)) continue;
+      const next = body[i + 1];
+      if (next !== undefined && !/\s/.test(next)) continue;
+      addSpan(out, text, from, part.index + i + 1);
       from = part.index + i + 1;
     }
     addSpan(out, text, from, part.index + body.length);

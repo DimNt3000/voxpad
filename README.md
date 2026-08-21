@@ -1,5 +1,7 @@
 # Voxpad
 
+[![CI](https://github.com/DimNt3000/voxpad/actions/workflows/ci.yml/badge.svg)](https://github.com/DimNt3000/voxpad/actions/workflows/ci.yml)
+
 A text to speech reader that runs entirely in the browser. Paste text or drop a file, pick a
 voice, and listen while the sentence being spoken is highlighted. No build step, no dependencies,
 no backend.
@@ -93,6 +95,23 @@ work from the chunk index, so they keep working on engines that never fire word 
 the active sentence is rewritten into three parts (before, word, after), so the cost per highlight
 does not grow with the length of the document.
 
+## Tests
+
+The pure logic is covered by Node's built in test runner, so the repository
+still has no dependencies and no build step:
+
+```bash
+npm test
+```
+
+86 tests cover sentence segmentation on both code paths (`Intl.Segmenter` and
+the hand written scanner, which must agree), voice sorting and grouping, the
+two translation tables, and the playback engine driven against a fake
+`speechSynthesis`. That last group is deliberately a regression suite: each
+test there corresponds to a defect found in an end to end audit, including the
+pause that used to skip speech on Android and the watchdog that used to cut
+sentences short on mobile.
+
 ## Project layout
 
 ```
@@ -107,6 +126,7 @@ js/voices.js             voice loading, grouping and sorting
 js/storage.js            preferences and draft text in localStorage
 js/i18n.js               English and Greek strings
 sw.js                    offline cache
+test/                    unit tests, run with node --test
 manifest.webmanifest     installable app metadata
 assets/                  favicon plus the PNG icon set used by install prompts
 ```

@@ -2,10 +2,12 @@
   "name": "voxpad",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Text to speech reader that runs entirely in the browser, built with plain HTML, CSS and ES modules on the Web Speech API.",
   "author": "Dimitrios-Georgios Ntoulias",
   "license": "MIT",
   "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
     "start": "npx --yes serve ."
   },
   "keywords": [
